@@ -144,6 +144,8 @@ td.cell.unsold .sq .nm{color:var(--rule-strong);font-family:var(--f-body);font-s
 .lower{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;align-items:start}
 @media (max-width:820px){.lower{grid-template-columns:1fr}}
 .lower .card{padding:14px 16px}
+body:not(.admin) .lower{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:820px){body:not(.admin) .lower{grid-template-columns:1fr}}
 .lower h3{font-size:22px;font-weight:800;text-transform:uppercase;margin-bottom:8px}
 table.people{width:100%;border-collapse:collapse}
 .people th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:6px 4px;border-bottom:1.5px solid var(--rule-strong)}
@@ -409,10 +411,10 @@ function lowerHTML(b){
   const dp=Number(b.donate_pct??50)||0, donated=Math.round(sold*price*dp/100), left=sold*price-donated-(Number(b.half_pay)||0)-(Number(b.final_pay)||0);
   const collected=S.isAdmin?ps.reduce((a,p)=>a+((paid[p.name.toLowerCase()]||{}).paid?p.sq.length*price:0),0):0;
   return `<div class="lower">
-    <section class="card"><h3>Who's in</h3>${S.isAdmin?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);margin:-2px 0 8px"><input type="checkbox" id="paidLinked" ${S.linked?"checked":""}> Paid and squares apply to every board</label>`:""}
+    ${S.isAdmin?`<section class="card"><h3>Who's in <span class="pill">Only you see this</span></h3><label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);margin:-2px 0 8px"><input type="checkbox" id="paidLinked" ${S.linked?"checked":""}> Paid and squares apply to every board</label>
       ${ps.length?`<table class="people"><thead><tr><th>Name</th><th class="r">Squares</th><th class="r">Owes</th>${S.isAdmin?`<th class="r">Paid</th><th>How</th>`:""}</tr></thead><tbody>${rows}</tbody></table>
       <div class="label" style="margin-top:8px">Tap a name to highlight their squares</div>`:`<div style="color:var(--muted)">No squares taken yet.</div>`}
-    </section>
+    </section>`:""}
     <section class="card"><h3>The money</h3>
       <div class="money"><span>Squares sold</span><b class="num">${sold} of 100</b></div>
       <div class="money"><span>Pot at ${money(price)} a square</span><b class="num">${money(sold*price)}</b></div>
@@ -421,7 +423,8 @@ function lowerHTML(b){
       <div class="money"><span>Halftime winner</span><b class="num">${money(b.half_pay)}</b></div>
       <div class="money"><span>Final winner</span><b class="num">${money(b.final_pay)}</b></div>
       ${S.isAdmin&&left!==0?`<div class="money" style="color:${left<0?"var(--warn)":"var(--muted)"}"><span>${left<0?"Short":"Left over"}${sold<100?" (so far)":""}</span><b class="num">${money(Math.abs(left))}</b></div>`:""}
-      <h3 style="margin-top:14px">How it works</h3>
+    ${S.isAdmin?"":`</section><section class="card">`}
+      <h3 style="${S.isAdmin?"margin-top:14px":""}">How it works</h3>
       <ol class="rules" style="padding-left:18px;margin:0">
         <li>Buy squares. Once the board fills, numbers 0–9 are drawn at random for each team.</li>
         <li>At halftime and at the end, take the last digit of each team's score.</li>
