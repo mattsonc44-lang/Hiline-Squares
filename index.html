@@ -481,6 +481,7 @@ function onSquare(b,i){
   $("dSq").showModal();$("sqName").focus();
 }
 $("fSq").addEventListener("submit",e=>{if(e.submitter&&e.submitter.value==="ok"){const b=cur();setName(b,S.sqIdx,$("sqName").value)}});
+$("sqName").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();setName(cur(),S.sqIdx,$("sqName").value);$("dSq").close()}});
 $("sqLinked").onchange=e=>setLinked(e.target.checked);
 $("sqClear").onclick=()=>{setName(cur(),S.sqIdx,"");$("dSq").close()};
 
