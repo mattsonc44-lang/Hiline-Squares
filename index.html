@@ -8,9 +8,9 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Squares">
-<meta name="description" content="Football squares boards. $300 at the half, $900 at the final.">
+<meta name="description" content="Football squares boards. $350 at the half, $900 at the final, half the pot donated.">
 <meta property="og:title" content="Hi-Line Squares">
-<meta property="og:description" content="Football squares boards. $300 at the half, $900 at the final.">
+<meta property="og:description" content="Football squares boards. $350 at the half, $900 at the final, half the pot donated.">
 <meta property="og:image" content="/icons/share-card.png">
 <title>Hi-Line Squares</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -165,6 +165,7 @@ dialog::backdrop{background:rgba(10,16,13,.55)}
 .dlg h3{font-size:26px;font-weight:900;text-transform:uppercase}
 .dlg label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
 .dlg input[type=text],.dlg input[type=email],.dlg input[type=password],.dlg input[type=number],.dlg input[type=date]{border:1.5px solid var(--rule-strong);border-radius:3px;padding:7px 10px;background:var(--paper);color:var(--text);font-size:16px}
+.dlg .row input,.dlg .row3 input{min-width:0;width:100%}
 .dlg .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .dlg .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .dlg .teamrow{display:grid;grid-template-columns:1fr 48px;gap:8px;align-items:end}
@@ -232,8 +233,10 @@ footer button{background:none;border:0;text-decoration:underline;color:var(--mut
   <div class="teamrow"><label>Team down the side<input type="text" id="bSide" maxlength="30" required></label><input type="color" id="bSideC" aria-label="Side team color"></div>
   <button class="btn quiet" type="button" id="bSwap">⇅ Swap top and side</button>
   <label>Game note (day, time, channel)<input type="text" id="bNote" maxlength="80" placeholder="Thu Nov 26 · 2:30 PM · FOX"></label>
-  <div class="row3">
+  <div class="row">
     <label>$ per square<input type="number" id="bPrice" min="0" step="1"></label>
+    <label>% donated<input type="number" id="bDon" min="0" max="100" step="1"></label>
+  </div><div class="row">
     <label>$ at half<input type="number" id="bHalf" min="0" step="1"></label>
     <label>$ at final<input type="number" id="bFinal" min="0" step="1"></label>
   </div>
@@ -306,7 +309,7 @@ function render(){
   S.cur=b.id;
   document.documentElement.style.setProperty("--top",b.top_color);
   document.documentElement.style.setProperty("--side",b.side_color);
-  $("ticket").innerHTML=`<div><div class="label">Halftime</div><div class="amt num">${money(b.half_pay)}</div></div><div class="divider"></div><div><div class="label">Final</div><div class="amt num">${money(b.final_pay)}</div></div>`;
+  $("ticket").innerHTML=`<div><div class="label">Halftime</div><div class="amt num">${money(b.half_pay)}</div></div><div class="divider"></div><div><div class="label">Final</div><div class="amt num">${money(b.final_pay)}</div></div><div class="divider"></div><div><div class="label">Donated</div><div class="amt num">${Number(b.donate_pct??50)}%</div></div>`;
   $("main").innerHTML=boardHTML(b)+lowerHTML(b);
   wire(b);
 }
@@ -403,6 +406,7 @@ function lowerHTML(b){
     return `<tr data-person="${esc(k)}" class="${S.sel===k?"sel":""}"><td class="nm">${esc(p.name)}</td><td class="r num">${p.sq.length}</td><td class="r num">${money(p.sq.length*price)}</td>${adm}</tr>`;
   }).join("");
   const sold=ps.reduce((a,p)=>a+p.sq.length,0);
+  const dp=Number(b.donate_pct??50)||0, donated=Math.round(sold*price*dp/100), left=sold*price-donated-(Number(b.half_pay)||0)-(Number(b.final_pay)||0);
   const collected=S.isAdmin?ps.reduce((a,p)=>a+((paid[p.name.toLowerCase()]||{}).paid?p.sq.length*price:0),0):0;
   return `<div class="lower">
     <section class="card"><h3>Who's in</h3>${S.isAdmin?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);margin:-2px 0 8px"><input type="checkbox" id="paidLinked" ${S.linked?"checked":""}> Paid and squares apply to every board</label>`:""}
@@ -413,13 +417,16 @@ function lowerHTML(b){
       <div class="money"><span>Squares sold</span><b class="num">${sold} of 100</b></div>
       <div class="money"><span>Pot at ${money(price)} a square</span><b class="num">${money(sold*price)}</b></div>
       ${S.isAdmin?`<div class="money"><span>Collected so far</span><b class="num">${money(collected)}</b></div>`:""}
+      <div class="money"><span>Donated (${dp}%)</span><b class="num">${money(donated)}</b></div>
       <div class="money"><span>Halftime winner</span><b class="num">${money(b.half_pay)}</b></div>
       <div class="money"><span>Final winner</span><b class="num">${money(b.final_pay)}</b></div>
+      ${S.isAdmin&&left!==0?`<div class="money" style="color:${left<0?"var(--warn)":"var(--muted)"}"><span>${left<0?"Short":"Left over"}${sold<100?" (so far)":""}</span><b class="num">${money(Math.abs(left))}</b></div>`:""}
       <h3 style="margin-top:14px">How it works</h3>
       <ol class="rules" style="padding-left:18px;margin:0">
         <li>Buy squares. Once the board fills, numbers 0–9 are drawn at random for each team.</li>
         <li>At halftime and at the end, take the last digit of each team's score.</li>
         <li>The square where ${esc(b.top_team)}'s digit (top) meets ${esc(b.side_team)}'s digit (side) wins. Overtime counts toward the final.</li>
+        <li>Squares are ${money(price)} each, and ${Number(b.donate_pct??50)}% of the pot is donated.</li>
       </ol>
     </section>
   </div>`;
@@ -450,7 +457,7 @@ function wire(b){
   $("editBoard").onclick=()=>openBoard(b);
   $("linkBtn").onclick=()=>openEspn(b);
   if($("pullBtn"))$("pullBtn").onclick=pullNow;
-  $("dupBtn").onclick=()=>createBoard({title:b.title+" (copy)",top_team:b.top_team,side_team:b.side_team,top_color:b.top_color,side_color:b.side_color,price:b.price,half_pay:b.half_pay,final_pay:b.final_pay,names:[...b.names]},"Copied with the same names. Numbers and scores start fresh.");
+  $("dupBtn").onclick=()=>createBoard({title:b.title+" (copy)",top_team:b.top_team,side_team:b.side_team,top_color:b.top_color,side_color:b.side_color,price:b.price,donate_pct:b.donate_pct??50,half_pay:b.half_pay,final_pay:b.final_pay,names:[...b.names]},"Copied with the same names. Numbers and scores start fresh.");
   $("main").querySelectorAll("[data-paid]").forEach(cb=>cb.onchange=()=>setPaid(b,cb.dataset.paid,{paid:cb.checked}));
   $("main").querySelectorAll("[data-how]").forEach(sel=>sel.onchange=()=>setPaid(b,sel.dataset.how,{how:sel.value,paid:sel.value?true:undefined}));
 }
@@ -529,7 +536,7 @@ function openBoard(b){
   $("bTop").value=b?b.top_team:"";$("bSide").value=b?b.side_team:"";
   $("bTopC").value=b?b.top_color:"#1f4e9c";$("bSideC").value=b?b.side_color:"#b3203a";
   $("bNote").value=b?b.game_note:"";
-  $("bPrice").value=b?b.price:12;$("bHalf").value=b?b.half_pay:300;$("bFinal").value=b?b.final_pay:900;
+  $("bPrice").value=b?b.price:25;$("bDon").value=b?(b.donate_pct??50):50;$("bHalf").value=b?b.half_pay:350;$("bFinal").value=b?b.final_pay:900;
   $("bDelete").classList.toggle("hide",!b);
   $("bLink").textContent=b&&b.espn_event?"Linked to ESPN game "+b.espn_event:"";
   $("dBoard").showModal();
@@ -541,7 +548,7 @@ $("fBoard").addEventListener("submit",e=>{
   if(!e.submitter||e.submitter.value!=="ok")return;
   const f={title:$("bTitle").value.trim()||"Board",top_team:$("bTop").value.trim()||"Top",side_team:$("bSide").value.trim()||"Side",
     top_color:$("bTopC").value,side_color:$("bSideC").value,game_note:$("bNote").value.trim(),
-    price:Math.max(0,parseInt($("bPrice").value)||0),half_pay:Math.max(0,parseInt($("bHalf").value)||0),final_pay:Math.max(0,parseInt($("bFinal").value)||0)};
+    price:Math.max(0,parseInt($("bPrice").value)||0),donate_pct:Math.min(100,Math.max(0,parseInt($("bDon").value)||0)),half_pay:Math.max(0,parseInt($("bHalf").value)||0),final_pay:Math.max(0,parseInt($("bFinal").value)||0)};
   if(editing){
     if(swapPending){const b=editing;Object.assign(f,{top_digits:b.side_digits,side_digits:b.top_digits,half_top:b.half_side,half_side:b.half_top,final_top:b.final_side,final_side:b.final_top,espn_top_id:b.espn_side_id,espn_side_id:b.espn_top_id,live:b.live?{...b.live,top:b.live.side,side:b.live.top}:null});
       toast("Swapped. Numbers moved with their teams, so nobody's square changes.")}
