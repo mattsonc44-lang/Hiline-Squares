@@ -217,6 +217,7 @@ footer button{background:none;border:0;text-decoration:underline;color:var(--mut
   <h3 id="sqTitle">Square</h3>
   <label>Name<input type="text" id="sqName" list="nameList" autocomplete="off" maxlength="40"></label>
   <datalist id="nameList"></datalist>
+  <label style="flex-direction:row;align-items:center;gap:8px;color:var(--text)"><input type="checkbox" id="sqLinked"> Same square on every board</label>
   <div class="foot">
     <button class="btn danger" type="button" id="sqClear">Clear square</button>
     <span class="actions"><button class="btn quiet" value="cancel" formnovalidate>Cancel</button><button class="btn primary" id="sqSave" value="ok">Save</button></span>
@@ -270,7 +271,7 @@ footer button{background:none;border:0;text-decoration:underline;color:var(--mut
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money=n=>"$"+Number(n||0).toLocaleString();
-const S={boards:[],cur:null,isAdmin:false,paid:{},fill:null,find:"",sel:null,sqIdx:null};
+const S={linked:(()=>{try{return localStorage.getItem("sqLinked")!=="0"}catch(e){return true}})(),boards:[],cur:null,isAdmin:false,paid:{},fill:null,find:"",sel:null,sqIdx:null};
 let sb=null;
 
 function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),2600)}
@@ -379,7 +380,7 @@ function boardHTML(b){
   return `<section class="card">
     <div class="head"><div><h2>${esc(b.title)}${pill}</h2><div class="note">${esc(b.top_team)} (top) vs ${esc(b.side_team)} (side)${b.game_note?" · "+esc(b.game_note):""} · ${sold}/100 sold · ${money(b.price)} a square</div></div>${adminActs}</div>
     <div class="strip">${qtrHTML(b,"half")}${qtrHTML(b,"final")}${liveHTML(b)}</div>
-    ${S.fill!==null?`<div class="fillbar">Fill mode: type a name, then tap squares to give them that name. Tap again to clear. <input type="text" id="fillName" list="nameList" value="${esc(S.fill)}" placeholder="Name" style="border:1.5px solid var(--rule-strong);border-radius:3px;padding:6px 10px;background:var(--sheet)"></div>`:""}
+    ${S.fill!==null?`<div class="fillbar">Fill mode: type a name, then tap squares to give them that name. Tap again to clear. <input type="text" id="fillName" list="nameList" value="${esc(S.fill)}" placeholder="Name" style="border:1.5px solid var(--rule-strong);border-radius:3px;padding:6px 10px;background:var(--sheet)"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="fillLinked" ${S.linked?"checked":""}> Same square on every board</label></div>`:""}
     <div class="gridwrap"><table class="grid">
       <colgroup><col class="c-side"><col class="c-dig">${"<col>".repeat(10)}</colgroup>
       <tr><td></td><td></td><th class="topband" colspan="10">${esc(b.top_team)}</th></tr>
@@ -444,6 +445,7 @@ function wire(b){
   };
   $("fillBtn").onclick=()=>{S.fill=S.fill===null?"":null;render();if(S.fill!==null)$("fillName").focus()};
   if($("fillName"))$("fillName").oninput=e=>{S.fill=e.target.value};
+  if($("fillLinked"))$("fillLinked").onchange=e=>setLinked(e.target.checked);
   $("editBoard").onclick=()=>openBoard(b);
   $("linkBtn").onclick=()=>openEspn(b);
   if($("pullBtn"))$("pullBtn").onclick=pullNow;
@@ -464,9 +466,11 @@ function onSquare(b,i){
   S.sqIdx=i;
   $("sqTitle").textContent=`Square ${i+1}`;
   $("sqName").value=b.names[i]||"";
+  $("sqLinked").checked=S.linked;
   $("dSq").showModal();$("sqName").focus();
 }
 $("fSq").addEventListener("submit",e=>{if(e.submitter&&e.submitter.value==="ok"){const b=cur();setName(b,S.sqIdx,$("sqName").value)}});
+$("sqLinked").onchange=e=>setLinked(e.target.checked);
 $("sqClear").onclick=()=>{setName(cur(),S.sqIdx,"");$("dSq").close()};
 
 /* ---------- data ---------- */
@@ -492,10 +496,13 @@ async function save(b,patch){
 }
 async function setName(b,i,name){
   name=(name||"").trim().slice(0,40);
-  b.names[i]=name;render();
-  const {error}=await sb.rpc("sq_set_name",{p_board:b.id,p_idx:i,p_name:name});
-  if(error){toast("Didn't save: "+error.message);load()}
+  const targets=S.linked?S.boards:[b];
+  targets.forEach(x=>x.names[i]=name);render();
+  const res=await Promise.all(targets.map(x=>sb.rpc("sq_set_name",{p_board:x.id,p_idx:i,p_name:name})));
+  const bad=res.find(r=>r.error);
+  if(bad){toast("Didn't save: "+bad.error.message);load()}
 }
+function setLinked(v){S.linked=v;try{localStorage.setItem("sqLinked",v?"1":"0")}catch(e){}}
 async function setPaid(b,name,patch){
   const k=name.toLowerCase(), m=(S.paid[b.id]||={}), row={...(m[k]||{paid:false,how:""})};
   Object.entries(patch).forEach(([x,v])=>{if(v!==undefined)row[x]=v});
