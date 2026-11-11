@@ -405,7 +405,7 @@ function lowerHTML(b){
   const sold=ps.reduce((a,p)=>a+p.sq.length,0);
   const collected=S.isAdmin?ps.reduce((a,p)=>a+((paid[p.name.toLowerCase()]||{}).paid?p.sq.length*price:0),0):0;
   return `<div class="lower">
-    <section class="card"><h3>Who's in</h3>
+    <section class="card"><h3>Who's in</h3>${S.isAdmin?`<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted);margin:-2px 0 8px"><input type="checkbox" id="paidLinked" ${S.linked?"checked":""}> Paid and squares apply to every board</label>`:""}
       ${ps.length?`<table class="people"><thead><tr><th>Name</th><th class="r">Squares</th><th class="r">Owes</th>${S.isAdmin?`<th class="r">Paid</th><th>How</th>`:""}</tr></thead><tbody>${rows}</tbody></table>
       <div class="label" style="margin-top:8px">Tap a name to highlight their squares</div>`:`<div style="color:var(--muted)">No squares taken yet.</div>`}
     </section>
@@ -446,6 +446,7 @@ function wire(b){
   $("fillBtn").onclick=()=>{S.fill=S.fill===null?"":null;render();if(S.fill!==null)$("fillName").focus()};
   if($("fillName"))$("fillName").oninput=e=>{S.fill=e.target.value};
   if($("fillLinked"))$("fillLinked").onchange=e=>setLinked(e.target.checked);
+  if($("paidLinked"))$("paidLinked").onchange=e=>{setLinked(e.target.checked);render()};
   $("editBoard").onclick=()=>openBoard(b);
   $("linkBtn").onclick=()=>openEspn(b);
   if($("pullBtn"))$("pullBtn").onclick=pullNow;
@@ -504,11 +505,12 @@ async function setName(b,i,name){
 }
 function setLinked(v){S.linked=v;try{localStorage.setItem("sqLinked",v?"1":"0")}catch(e){}}
 async function setPaid(b,name,patch){
-  const k=name.toLowerCase(), m=(S.paid[b.id]||={}), row={...(m[k]||{paid:false,how:""})};
-  Object.entries(patch).forEach(([x,v])=>{if(v!==undefined)row[x]=v});
-  m[k]=row;render();
-  const {error}=await sb.from("sq_paid").upsert({board_id:b.id,name:k,paid:!!row.paid,how:row.how||"",updated_at:new Date().toISOString()});
-  if(error)toast("Didn't save: "+error.message);
+  const k=name.toLowerCase(), base={...((S.paid[b.id]||{})[k]||{paid:false,how:""})};
+  Object.entries(patch).forEach(([x,v])=>{if(v!==undefined)base[x]=v});
+  const targets=S.linked?S.boards:[b], now=new Date().toISOString();
+  targets.forEach(x=>{(S.paid[x.id]||={})[k]={paid:!!base.paid,how:base.how||""}});render();
+  const {error}=await sb.from("sq_paid").upsert(targets.map(x=>({board_id:x.id,name:k,paid:!!base.paid,how:base.how||"",updated_at:now})));
+  if(error){toast("Didn't save: "+error.message);load()}
 }
 async function createBoard(fields,msg){
   const sort=Math.max(0,...S.boards.map(b=>b.sort||0))+1;
