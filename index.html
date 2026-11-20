@@ -170,6 +170,12 @@ dialog::backdrop{background:rgba(10,16,13,.55)}
 .dlg .row input,.dlg .row3 input{min-width:0;width:100%}
 .dlg .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .dlg .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.digs{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
+.digs input{width:100%;min-width:0;text-align:center;font-family:var(--f-display);font-weight:900;font-size:22px;padding:6px 0;border:1.5px solid var(--rule-strong);border-radius:3px;background:var(--paper);color:var(--text)}
+.digs input.bad{border-color:#b3203a;background:color-mix(in srgb,#b3203a 12%,var(--paper))}
+.digs .cap{font-size:10px;color:var(--muted);text-align:center}
+.dighead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dighead b{display:flex;align-items:center;gap:6px}
 .dlg .teamrow{display:grid;grid-template-columns:1fr 48px;gap:8px;align-items:end}
 .dlg input[type=color]{width:48px;height:38px;border:1.5px solid var(--rule-strong);border-radius:3px;padding:2px;background:var(--paper)}
 .dlg .foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -278,6 +284,18 @@ footer button{background:none;border:0;text-decoration:underline;color:var(--mut
   <div class="games" id="eGames"></div>
   <div class="foot"><button class="btn danger" type="button" id="eUnlink">Unlink</button><button class="btn quiet" type="button" id="eClose">Close</button></div>
 </div></dialog>
+
+<!-- edit numbers -->
+<dialog id="dDig"><form class="dlg" id="fDig">
+  <h3>Edit numbers</h3>
+  <div style="color:var(--muted);font-size:14px">Each row needs 0 through 9, each used once. Changing numbers changes who wins, so set them before kickoff.</div>
+  <div class="dighead"><b><span class="sw" id="dgTopSw"></span><span id="dgTopName">Top</span><span style="font-weight:500;color:var(--muted);font-size:13px">across the top</span></b><button class="btn quiet" type="button" data-shuf="top">Shuffle</button></div>
+  <div class="digs" id="dgTop"></div>
+  <div class="dighead"><b><span class="sw" id="dgSideSw"></span><span id="dgSideName">Side</span><span style="font-weight:500;color:var(--muted);font-size:13px">down the side</span></b><button class="btn quiet" type="button" data-shuf="side">Shuffle</button></div>
+  <div class="digs" id="dgSide"></div>
+  <div id="dgMsg" style="color:#b3203a;font-weight:600;min-height:1.2em"></div>
+  <div class="foot"><span></span><span class="actions"><button class="btn quiet" type="button" id="dgCancel">Cancel</button><button class="btn primary">Save numbers</button></span></div>
+</form></dialog>
 
 <!-- sign in -->
 <dialog id="dLogin"><form class="dlg" id="fLogin">
@@ -396,6 +414,7 @@ function boardHTML(b){
   const sold=b.names.filter(n=>(n||"").trim()).length;
   const adminActs=S.isAdmin?`<div class="actions">
       <button class="btn ${b.top_digits?"quiet":"primary"}" id="draw">${b.top_digits?"Redraw numbers":"Draw numbers"}</button>
+      <button class="btn" id="digBtn">Edit numbers</button>
       <button class="btn ${S.fill!==null?"on":""}" id="fillBtn">${S.fill!==null?"Done filling":"Fill squares"}</button>
       <button class="btn" id="editBoard">Edit board</button>
       <button class="btn" id="linkBtn">${b.espn_event?"ESPN linked ✓":"Link ESPN game"}</button>
@@ -467,6 +486,7 @@ function wire(b){
     const v=inp.value.trim();if(v!==""&&!/^\d{1,3}$/.test(v)){toast("Scores are whole numbers");inp.value="";return}
     save(b,{[inp.dataset.score]:v===""?null:Number(v)});
   });
+  $("digBtn").onclick=()=>openDigits(b);
   $("draw").onclick=()=>{
     if(b.top_digits&&!confirm("Numbers are already drawn. Draw new ones? Everyone's squares change numbers."))return;
     const sold=b.names.filter(n=>(n||"").trim()).length;
@@ -587,6 +607,48 @@ $("bDelete").onclick=async()=>{
   if(error){toast("Couldn't delete: "+error.message);return}
   S.boards=S.boards.filter(x=>x.id!==b.id);S.cur=S.boards[0]?.id||null;render();toast("Board deleted");
 };
+
+/* ---------- edit numbers ---------- */
+let digFor=null;
+function digInputs(id,vals){
+  $(id).innerHTML=Array.from({length:10},(_,i)=>`<div><input inputmode="numeric" maxlength="1" value="${vals&&vals[i]!=null?vals[i]:""}" aria-label="${id==="dgTop"?"Column":"Row"} ${i+1}"></div>`).join("");
+  $(id).querySelectorAll("input").forEach((inp,i,all)=>{
+    inp.oninput=()=>{inp.value=inp.value.replace(/[^0-9]/g,"").slice(-1);checkDigits();if(inp.value&&all[i+1])all[i+1].focus(),all[i+1].select()};
+    inp.onfocus=()=>inp.select();
+  });
+}
+const readDigs=id=>[...$(id).querySelectorAll("input")].map(x=>x.value===""?null:Number(x.value));
+function checkDigits(){
+  let ok=true;const msgs=[];
+  for(const [id,label] of [["dgTop",$("dgTopName").textContent],["dgSide",$("dgSideName").textContent]]){
+    const v=readDigs(id), ins=[...$(id).querySelectorAll("input")];
+    const counts={};v.forEach(d=>{if(d!=null)counts[d]=(counts[d]||0)+1});
+    ins.forEach((x,i)=>x.classList.toggle("bad",v[i]!=null&&counts[v[i]]>1));
+    const dup=Object.keys(counts).filter(d=>counts[d]>1), miss=[0,1,2,3,4,5,6,7,8,9].filter(d=>!counts[d]);
+    if(dup.length){ok=false;msgs.push(`${label}: ${dup.join(", ")} used twice`)}
+    else if(miss.length){ok=false;msgs.push(`${label}: missing ${miss.join(", ")}`)}
+  }
+  $("dgMsg").textContent=msgs.join(" · ");
+  return ok;
+}
+function openDigits(b){
+  digFor=b;
+  $("dgTopName").textContent=b.top_team;$("dgSideName").textContent=b.side_team;
+  $("dgTopSw").style.background=b.top_color;$("dgSideSw").style.background=b.side_color;
+  digInputs("dgTop",b.top_digits);digInputs("dgSide",b.side_digits);
+  $("dgMsg").textContent="";if(b.top_digits)checkDigits();
+  $("dDig").showModal();
+}
+document.querySelectorAll("[data-shuf]").forEach(btn=>btn.onclick=()=>{const id=btn.dataset.shuf==="top"?"dgTop":"dgSide";digInputs(id,shuffle());checkDigits()});
+$("dgCancel").onclick=()=>$("dDig").close();
+$("fDig").addEventListener("submit",e=>{
+  e.preventDefault();
+  if(!checkDigits())return;
+  const b=digFor, t=readDigs("dgTop"), sd=readDigs("dgSide");
+  const changed=JSON.stringify(t)!==JSON.stringify(b.top_digits)||JSON.stringify(sd)!==JSON.stringify(b.side_digits);
+  $("dDig").close();
+  if(changed){save(b,{top_digits:t,side_digits:sd});toast("Numbers saved")}
+});
 
 /* ---------- ESPN dialog ---------- */
 let espnFor=null,espnGames=[];
