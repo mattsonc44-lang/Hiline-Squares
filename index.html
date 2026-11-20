@@ -185,14 +185,34 @@ footer button{background:none;border:0;text-decoration:underline;color:var(--mut
 .toast.show{opacity:1}
 
 @media print{
-  body{background:#fff;padding:0}
-  .mast,.tabs,.tools,.fillbar,.lower,footer,.actions,.toast{display:none!important}
+  :root{--paper:#fff;--sheet:#fff;--rule:#c9cfcb;--rule-strong:#8f9a94;--grid:#222;--text:#111;--muted:#555;--ink:#1d2f8f;--half:#f4ee2a;--half-text:#111;--final:#1f7a4a;--final-text:#fff;color-scheme:light}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{size:letter landscape;margin:0.3in}
+  html,body{background:#fff;padding:0;margin:0}
+  .wrap{max-width:none;gap:0}
+  .mast,.tabs,.tools,.fillbar,.lower,footer,.actions,.toast,.strip,dialog,.pill{display:none!important}
   .card{border:0}
+  .head{padding:0 0 .06in;border:0;display:block}
+  .head h2{font-size:24pt}
+  .head .note{font-size:10pt;margin-top:2px;color:#333}
+  .printonly{display:inline!important}
   .gridwrap{overflow:visible;padding:0}
-  table.grid{min-width:0}
+  table.grid{min-width:0;width:100%;break-inside:avoid;page-break-inside:avoid}
+  .grid col.c-side{width:.32in}.grid col.c-dig{width:.38in}
+  .grid .topband{font-size:15pt;padding:.03in 0}
+  .grid .sideband{width:.32in}
+  .grid .sideband div{font-size:15pt}
+  .grid .dig{height:.32in;font-size:17pt}
+  .grid td.cell{height:.6in}
+  .sq{padding:3px 4px}
+  .sq .nm{font-size:12pt;max-height:2.3em}
+  .sq .nm.s{font-size:10pt}.sq .nm.xs{font-size:8.5pt}
+  .sq .no{font-size:7.5pt}
   td.cell.dim{opacity:1}
-  @page{size:landscape;margin:10mm}
+  td.cell.mine{box-shadow:none}
+  td.cell.unsold .nm{visibility:hidden}
 }
+.printonly{display:none}
 </style>
 </head>
 <body>
@@ -383,7 +403,7 @@ function boardHTML(b){
       <button class="btn quiet" id="dupBtn">Copy to new board</button>
     </div>`:"";
   return `<section class="card">
-    <div class="head"><div><h2>${esc(b.title)}${pill}</h2><div class="note">${esc(b.top_team)} (top) vs ${esc(b.side_team)} (side)${b.game_note?" · "+esc(b.game_note):""} · ${sold}/100 sold · ${money(b.price)} a square</div></div>${adminActs}</div>
+    <div class="head"><div><h2>${esc(b.title)}${pill}</h2><div class="note">${esc(b.top_team)} (top) vs ${esc(b.side_team)} (side)${b.game_note?" · "+esc(b.game_note):""} · ${sold}/100 sold · ${money(b.price)} a square<span class="printonly"> · Half ${money(b.half_pay)} · Final ${money(b.final_pay)} · ${Number(b.donate_pct??50)}% donated</span></div></div>${adminActs}</div>
     <div class="strip">${qtrHTML(b,"half")}${qtrHTML(b,"final")}${liveHTML(b)}</div>
     ${S.fill!==null?`<div class="fillbar">Fill mode: type a name, then tap squares to give them that name. Tap again to clear. <input type="text" id="fillName" list="nameList" value="${esc(S.fill)}" placeholder="Name" style="border:1.5px solid var(--rule-strong);border-radius:3px;padding:6px 10px;background:var(--sheet)"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="fillLinked" ${S.linked?"checked":""}> Same square on every board</label></div>`:""}
     <div class="gridwrap"><table class="grid">
